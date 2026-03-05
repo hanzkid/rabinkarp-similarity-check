@@ -11,6 +11,9 @@ type RabinKarpSimilarity struct {
 	Mu           sync.Mutex
 }
 
+// NewRabinKarpSimilarity creates a new RabinKarpSimilarity instance
+// numberOfCorpus is the number of corpus to calculate the hashes for
+// kgram is the k-gram size to use for the hashes
 func NewRabinKarpSimilarity(numberOfCorpus int, kgram int) *RabinKarpSimilarity {
 	rabinKarp := &RabinKarpSimilarity{
 		CorpusHashes: make(map[string][]int64, numberOfCorpus),
@@ -20,25 +23,8 @@ func NewRabinKarpSimilarity(numberOfCorpus int, kgram int) *RabinKarpSimilarity 
 	return rabinKarp
 }
 
-func (r *RabinKarpSimilarity) CalculateCorpusHashes(corpus string, key string) {
-	r.Mu.Lock()
-	defer r.Mu.Unlock()
-
-	rabinKarp := NewRabinKarp(corpus, r.KGram)
-	hash := []int64{}
-
-	for i := 0; i <= len(corpus)-r.KGram+1; i++ {
-		hash = append(hash, rabinKarp.Hash)
-
-		if !rabinKarp.NextWindow() {
-			break
-		}
-	}
-	r.CorpusHashes[key] = hash
-}
-
-func (r *RabinKarpSimilarity) CalculateQueryHashes(query string) {
-	rabinKarp := NewRabinKarp(query, r.KGram)
+func (r *RabinKarpSimilarity) calculateQueryHashes(query string) {
+	rabinKarp := newRabinKarp(query, r.KGram)
 	hash := []int64{}
 	for i := 0; i <= len(query)-r.KGram+1; i++ {
 		hash = append(hash, rabinKarp.Hash)
@@ -46,35 +32,49 @@ func (r *RabinKarpSimilarity) CalculateQueryHashes(query string) {
 	r.QueryHashes = hash
 }
 
-func (r *RabinKarpSimilarity) CalculateSimilarity(query string, key string) float64 {
-	r.CalculateQueryHashes(query)
-	intersect := r.intersectHashes(r.QueryHashes, r.CorpusHashes[key])
-	totalHashes := len(r.QueryHashes) + len(r.CorpusHashes[key])
-	return float64(intersect) / float64(totalHashes)
-}
-
 func (r *RabinKarpSimilarity) intersectHashes(hashes1, hashes2 []int64) int {
+	set := make(map[int64]struct{})
+
+	for _, h := range hashes1 {
+		set[h] = struct{}{}
+	}
+
 	intersection := 0
-
-	set := make(map[int64]bool)
-	set2 := make(map[int64]bool)
-
-	for _, num := range hashes1 {
-		set[num] = true
-	}
-
-	for _, num := range hashes2 {
-		if set[num] {
-			intersection++
-		}
-		set2[num] = true
-	}
-
-	for _, num := range hashes1 {
-		if set2[num] {
+	for _, h := range hashes2 {
+		if _, ok := set[h]; ok {
 			intersection++
 		}
 	}
 
 	return intersection
+}
+
+// CalculateCorpusHashes calculates the hashes of the corpus and stores them in the CorpusHashes map
+// using a mutex to prevent race conditions
+// key is the key of the corpus in the CorpusHashes map, example: "text-1", "text-2", etc.
+func (r *RabinKarpSimilarity) CalculateCorpusHashes(corpus string, key string) {
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
+
+	rabinKarp := newRabinKarp(corpus, r.KGram)
+	hash := []int64{}
+
+	for i := 0; i <= len(corpus)-r.KGram+1; i++ {
+		hash = append(hash, rabinKarp.Hash)
+
+		if !rabinKarp.nextWindow() {
+			break
+		}
+	}
+	r.CorpusHashes[key] = hash
+}
+
+// CalculateSimilarity calculates the similarity between the query and the corpus
+// using the intersectHashes function to find the intersection of the hashes
+// key is the key of the corpus in the CorpusHashes map, example: "text-1", "text-2", etc.
+func (r *RabinKarpSimilarity) CalculateSimilarity(query string, key string) float64 {
+	r.calculateQueryHashes(query)
+	intersect := r.intersectHashes(r.QueryHashes, r.CorpusHashes[key])
+	totalHashes := len(r.QueryHashes) + len(r.CorpusHashes[key]) - intersect
+	return float64(intersect) / float64(totalHashes)
 }

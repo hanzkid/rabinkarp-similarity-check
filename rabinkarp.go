@@ -2,7 +2,7 @@ package rabinkarpsimilarity
 
 import "strings"
 
-type RabinKarp struct {
+type rabinKarp struct {
 	Base        int
 	Text        string
 	PatternSize int
@@ -10,11 +10,11 @@ type RabinKarp struct {
 	End         int
 	Mod         int64
 	Hash        int64
-	basePow     int64 // precomputed Base^(PatternSize-1) % Mod
+	basePow     int64
 }
 
-func NewRabinKarp(text string, patternSize int) *RabinKarp {
-	rb := &RabinKarp{
+func newRabinKarp(text string, patternSize int) *rabinKarp {
+	rb := &rabinKarp{
 		Base:        26,
 		PatternSize: patternSize,
 		Start:       0,
@@ -28,8 +28,7 @@ func NewRabinKarp(text string, patternSize int) *RabinKarp {
 	return rb
 }
 
-// init precomputes the first window hash and Base^(PatternSize-1) % Mod.
-func (rb *RabinKarp) init() {
+func (rb *rabinKarp) init() {
 	textRunes := []rune(rb.Text)
 	if rb.PatternSize <= 0 || rb.PatternSize > len(textRunes) {
 		rb.Start = 0
@@ -61,9 +60,7 @@ func (rb *RabinKarp) init() {
 	rb.Hash = hashValue
 }
 
-// NextWindow returns boolean and create new hash for the next window
-// using rolling hash technique
-func (rb *RabinKarp) NextWindow() bool {
+func (rb *rabinKarp) nextWindow() bool {
 	textRunes := []rune(rb.Text)
 
 	// No more full windows possible.
@@ -89,7 +86,6 @@ func (rb *RabinKarp) NextWindow() bool {
 	return true
 }
 
-// CurrentWindowText return the current window text
-func (rb *RabinKarp) CurrentWindowText() string {
+func (rb *rabinKarp) currentWindowText() string {
 	return rb.Text[rb.Start:rb.End]
 }
